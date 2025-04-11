@@ -1,6 +1,5 @@
-# An Iterative Approach for High-Quality Mask Generation in Image Matting
-
-This is the official code of "An Iterative Approach for High-Quality Mask Generation in Image Matting (MPM)".
+# Inpaint-Outpaint Synergy: Mask Refinement for Trimap-Free Matting
+This is the official code of "Inpaint-Outpaint Synergy: Mask Refinement for Trimap-Free Matting".
 
 <p align="center"><img src="imgs/mpms.png" width="700"/></p>
 <a href="https://www.python.org/"><img src="https://img.shields.io/badge/Python-3.9-ff69b4.svg" /></a>

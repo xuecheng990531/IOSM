@@ -20,7 +20,7 @@ You can put the data files in the `MPM_MTM_Modules` folder as well as in `MPM_Ma
     - Open `MPM_Mask_Acquire`
     - Run the following command for iterative optimization from roughprompt to accurate mask.
     ```angular2html
-    python scripts/PaintSeg.py --outdir $outdir$ --iters $iter_num$ --steps $diffusion step$ --dataset $dataset$ 
+    python scripts/PaintMatting.py --outdir $outdir$ --iters $iter_num$ --steps $diffusion step$ --dataset $dataset$ 
     ```
     - Put the obtained results in the `MPM_MTM_Modules` folder together with the datasets.
 2. Use MPM_MTM_Modules

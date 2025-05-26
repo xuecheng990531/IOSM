@@ -9,7 +9,6 @@ import torch
 from main import instantiate_from_config
 from ldm.models.diffusion.ddim import DDIMSampler
 from kmeans_pytorch import kmeans
-from sklearn.decomposition import PCA
 from torchvision import transforms
 sys.path.append('./mae')
 import models_mae
@@ -18,15 +17,13 @@ import pydensecrf.densecrf as dcrf
 import pydensecrf.utils as utils
 import torch
 import torch.nn.functional as F
-from scipy import ndimage
 import random
 from mask2scribble import *
-import PIL
-import gradio as gr
+
 from diffusers import StableDiffusionInpaintPipeline
-import datetime
+
 seed = 123
-root = 'paintmatting'
+root = 'PaintSeg'
 
 def setup_seed(seed):
     torch.manual_seed(seed)
@@ -235,14 +232,13 @@ def predict_mask(iter, backbone, inpainter_fg, inpainter_bg, image, mask, dinoTr
                 inpaint_mask = (mask * dilate).cpu().numpy()[0, 0] * 255
             else:
                 inpaint_mask = (mask).cpu().numpy()[0, 0] * 255
-                
             inpaint_mask = Image.fromarray(inpaint_mask.astype(np.uint8))
             inpainted_images = inpainter_bg(
                 prompt='',
                 image=toPIL(image),
                 mask_image=inpaint_mask,
                 guidance_scale=7.5,
-                num_inference_steps=250,
+                num_inference_steps=75,
                 generator=torch.Generator(device="cuda").manual_seed(seed),
                 num_images_per_prompt=len(factors),
             ).images
@@ -399,6 +395,29 @@ def predict_mask(iter, backbone, inpainter_fg, inpainter_bg, image, mask, dinoTr
 
     return mask
 
+def pad_image(image, target_size, type='rgb'):
+    """
+    :param image: input image
+    :param target_size: a tuple (num,num)
+    :return: new image
+    """
+    iw, ih = image.size
+    w, h = target_size
+
+    scale = min(w / iw, h / ih)
+
+    nw = int(iw * scale + 0.5)
+    nh = int(ih * scale + 0.5)
+
+    image = image.resize((nw, nh), Image.BICUBIC)
+    if type == 'rgb':
+        new_image = Image.new('RGB', target_size, (0, 0, 0))
+    else:
+        new_image = Image.new('L', target_size, (0))
+    new_image.paste(image, ((w - nw) // 2, (h - nh) // 2))
+
+    return new_image
+
 if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument(
@@ -416,13 +435,13 @@ if __name__ == "__main__":
     parser.add_argument(
         "--steps",
         type=int,
-        default=50,
+        default=75,
         help="number of ddim sampling steps",
     )
     parser.add_argument(
         "--iters",
         type=int,
-        default=5,
+        default=6,
         help="max iteration of inpainting for segm",
     )
     parser.add_argument(
@@ -432,6 +451,7 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--box_init",
+        # required=True,
         action='store_true',
         help="use box as init",
     )
@@ -464,7 +484,6 @@ if __name__ == "__main__":
     )
     parser.add_argument(
         "--dataset",
-        default='datasets/aim500',
         type=str,
         nargs="?",
         help="dataset",
@@ -480,31 +499,36 @@ if __name__ == "__main__":
     model.load_state_dict(torch.load("models/ldm/inpainting_big/last.ckpt")["state_dict"],
                           strict=False)
 
-    device = torch.device(f'cuda') if torch.cuda.is_available() else torch.device("cpu")
+    device = torch.device("cuda") if torch.cuda.is_available() else torch.device("cpu")
     model = model.to(device)
     sampler = DDIMSampler(model)
 
-    model_path = 'models/sd-inpainting/afeee10def38be19995784bcc811882409d066e5'
+    model_path = "runwayml/stable-diffusion-inpainting"
 
-    pipe =StableDiffusionInpaintPipeline.from_pretrained(
+    pipe = StableDiffusionInpaintPipeline.from_pretrained(
         model_path,
         torch_dtype=torch.float16,
     ).to(device)
+    if opt.dino_v2:
+        backbone = torch.hub.load('facebookresearch/dinov2', 'dinov2_vitb14').to(device)
+    else:
+        backbone = torch.hub.load('facebookresearch/dino:main', 'dino_vitb8', force_reload=True).to(device)
 
-
-    backbone = torch.hub.load(f'models/hub/facebookresearch_dino_main', 'dino_vitb8', source='local').to(device)
+        
     backbone.eval()
     dinoTransform = transforms.Compose([transforms.Resize((840, 840) if opt.dino_v2 else (480, 480), interpolation=3),
                                         transforms.ToTensor(),
                                         transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225))])
 
 
-    image_paths = sorted(glob.glob(f'datasets/voc/img/*'), reverse=True)
-    print(image_paths[0])
+    # image_paths = sorted(glob.glob(f'{root}/{opt.dataset}/images/*'), reverse=True)
+    image_paths=sorted(glob.glob(f'data/images/*'), reverse=True)
+
     if opt.split != 999:
         image_paths = image_paths[opt.split::2]
 
-    save_path = image_paths[0].replace('img','output')
+    save_path = "data/images/output"
+    # save_path = image_paths[0].replace(f'{opt.dataset}', f'PaintSeg/{opt.datasett}').replace('images', f'{opt.outdir}')
     os.makedirs(save_path, exist_ok=True)
     for image_path in tqdm(image_paths):
         (filepath, tempfilename) = os.path.split(image_path)
@@ -512,7 +536,7 @@ if __name__ == "__main__":
         # read image
         image = Image.open(image_path).convert("RGB")
         ori_shape = image.size[-2:]
-        image = np.array(image)
+        image = np.array(pad_image(image, (512, 512)))
         image = image.astype(np.float32) / 255.0
         image = image[None].transpose(0, 3, 1, 2)
         image = torch.from_numpy(image).to(device)
@@ -522,15 +546,19 @@ if __name__ == "__main__":
             (_, tempfilename) = os.path.split(image_path)
             filename, _ = os.path.splitext(tempfilename)
 
-            mask_path = os.path.join(f'{opt.dataset}/prompt/', filename+'.png')
+            mask_path = os.path.join(f'data/tokencut/', filename + '_tokencut.png')
             # if opt.gt:
-            #     mask_path = os.path.join(f'{root}/{opt.dataset}/tokencut/', filename)
-            # init_mask = np.array(pad_image(Image.open(mask_path).convert("L"), (512, 512), type='L'))
-            init_mask=np.array(Image.open(mask_path).convert("L"))
+            #     mask_path = os.path.join(f'{root}/{opt.dataset}/tokencut/', filename + '_gt.jpg')
+            init_mask = np.array(pad_image(Image.open(mask_path).convert("L"), (512, 512), type='L'))
             init_mask = init_mask.astype(np.float32) / 255.0
             init_mask = init_mask[None, None, ...]
             init_mask[init_mask < 0.5] = 0
             init_mask[init_mask >= 0.5] = 1
+
+
+            # init_mask_path = 'init_mask.png'
+            # visualize(init_mask, init_mask_path)
+            
             points = None
 
             if opt.box_init:
@@ -561,12 +589,9 @@ if __name__ == "__main__":
                 if os.path.exists(os.path.join(save_path, 'ema.png')):
                     continue
                 os.makedirs(save_path, exist_ok=True)
-                start=datetime.datetime.now()
+
                 mask = predict_mask(opt.iters, backbone, model, pipe, image, init_mask, dinoTransform, save_path,
                                     use_crf=opt.use_crf, global_cluster=False, points=points)
-                endtime = datetime.datetime.now()
-                time=(endtime-start).total_seconds()
-                print('use time:',time)
                 visualize(mask, os.path.join(save_path, 'ema.png'))
-                
+
 

@@ -3,7 +3,6 @@ import torch
 import torch.optim as optim
 from torch.utils.data import DataLoader
 import os
-from tools.dataset import MattingDataset
 from model.model730_refine import Unet
 from tools.metrics2 import *
 from tqdm import tqdm
@@ -43,19 +42,21 @@ def main():
         image_dir=args.train_image_dir,
         trimap_dir=args.train_trimap_dir,
         alpha_dir=args.train_alpha_dir,
+        alpha_dir=args.train_mask_dir,
         mode='train',
         seed=42
     )
-    train_loader = DataLoader(train_dataset, batch_size=args.train_batch, num_workers=8, shuffle=False)
+    train_loader = DataLoader(train_dataset, batch_size=args.train_batch, num_workers=8, shuffle=True)
 
     test_dataset = MattingDataset(
         image_dir=args.test_image_dir,
         trimap_dir=args.test_trimap_dir,
         alpha_dir=args.test_alpha_dir,
+        alpha_dir=args.test_mask_dir,
         mode='test',
         seed=42
     )
-    test_loader = DataLoader(test_dataset, batch_size=1, num_workers=8, shuffle=False)
+    test_loader = DataLoader(test_dataset, batch_size=1, num_workers=8, shuffle=True)
 
     model=Unet(backbone_name='resnet18').to(device)
 

@@ -27,13 +27,13 @@ git clone https://github.com/XY-boy/LGTD.git
 ## Usage
 
 1. Generate Accurate Binary Mask
-    - Open `MPM_Mask_Acquire`
+    - Open `Mask_Acquire`
     - Run the following command for iterative optimization from roughprompt to accurate mask.
     ```angular2html
     python scripts/PaintMatting.py --outdir $outdir$ --iters $iter_num$ --steps $diffusion step$ --dataset $dataset$ 
     ```
-    - Put the obtained results in the `MPM_MTM_Modules` folder together with the datasets.
-2. Use MPM_MTM_Modules
+    - Put the obtained results in the `MTM` folder together with the datasets.
+2. Use MTM
     - Run the `main.py` file for training.
    ```angular2html
     python main.py  --datasets {your datesets location} --fe {frozen encoder?} --norm {is norm your datasets image?}

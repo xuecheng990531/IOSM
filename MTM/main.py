@@ -40,7 +40,7 @@ def main():
 
     train_dataset = MattingDataset(
         image_dir=args.train_image_dir,
-        trimap_dir=args.train_trimap_dir,
+        prompt_dir=args.train_prompt_dir,
         alpha_dir=args.train_alpha_dir,
         alpha_dir=args.train_mask_dir,
         mode='train',
@@ -50,7 +50,7 @@ def main():
 
     test_dataset = MattingDataset(
         image_dir=args.test_image_dir,
-        trimap_dir=args.test_trimap_dir,
+        prompt_dir=args.test_prompt_dir,
         alpha_dir=args.test_alpha_dir,
         alpha_dir=args.test_mask_dir,
         mode='test',
@@ -69,10 +69,10 @@ def main():
         model.train()
         pbar = tqdm(train_loader, desc=f"Epoch:{epoch}")
         for index, sample_batched in enumerate(pbar):
-            image, alpha, trimap = sample_batched['image'], sample_batched['alpha'], sample_batched['trimap']
-            image, alpha, trimap = image.to(device), alpha.to(device), trimap.to(device)
+            image, alpha, prompt = sample_batched['image'], sample_batched['alpha'], sample_batched['prompt']
+            image, alpha, prompt = image.to(device), alpha.to(device), prompt.to(device)
 
-            alpha_pre = model(image,trimap)
+            alpha_pre = model(image,prompt)
 
             loss1, loss2, loss = fusion_loss(image, alpha, alpha_pre)
 
@@ -92,12 +92,12 @@ def main():
             with torch.no_grad():
                 pbar_test = tqdm(test_loader, desc='Test')
                 for i, sample_batched in enumerate(pbar_test):
-                    image, alpha, trimap, test_image_name = sample_batched['image'], sample_batched['alpha'], sample_batched['trimap'], sample_batched['image_name']
-                    image, alpha, trimap = image.to(device), alpha.to(device), trimap.to(device)
+                    image, alpha, prompt, test_image_name = sample_batched['image'], sample_batched['alpha'], sample_batched['prompt'], sample_batched['image_name']
+                    image, alpha, prompt = image.to(device), alpha.to(device), prompt.to(device)
 
-                    pred_alpha = model(image, trimap)
+                    pred_alpha = model(image, prompt)
 
-                    sad, mse, mad = calculate_sad_mse_mad(pred_alpha, alpha, trimap)
+                    sad, mse, mad = calculate_sad_mse_mad(pred_alpha, alpha, prompt)
                     grad = compute_gradient_whole_image(pred_alpha, alpha)
                     conn = compute_connectivity_loss_whole_image(pred_alpha, alpha)
 
